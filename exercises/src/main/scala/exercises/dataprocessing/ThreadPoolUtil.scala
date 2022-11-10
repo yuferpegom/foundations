@@ -8,6 +8,8 @@ import scala.concurrent.ExecutionContext
 // copied and adapted from cats-effect IOApp
 object ThreadPoolUtil {
 
+  // Passing the ec implicitly might result in some issues
+
   def fixedSizeExecutionContext(threads: Int, prefix: String = "compute"): ExecutionContext =
     ExecutionContext.fromExecutor(
       Executors.newFixedThreadPool(threads, threadFactory(prefix, daemon = true))

@@ -4,9 +4,13 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import TemperatureExercises._
 
+import scala.concurrent.ExecutionContext
+
+
+// NOTE: Scalacheck tries to find the simple input that breaks the test: SHRINKING
 class ParListTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks with ParListTestInstances {
 
-  ignore("minSampleByTemperature example") {
+  test("minSampleByTemperature example") {
     val samples = List(
       Sample("Africa", "Algeria", None, "Algiers", 8, 1, 2020, 50),
       Sample("Africa", "Algeria", None, "Algiers", 8, 1, 2020, 56.3),
@@ -16,7 +20,7 @@ class ParListTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks with P
       Sample("Africa", "Algeria", None, "Algiers", 8, 1, 2020, 34.7),
       Sample("Africa", "Algeria", None, "Algiers", 8, 1, 2020, 99.0),
     )
-    val parSamples = ParList.byPartitionSize(3, samples)
+    val parSamples = ParList.byPartitionSize(3, samples, ec)
 
     assert(
       minSampleByTemperature(parSamples) ==
@@ -24,9 +28,9 @@ class ParListTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks with P
     )
   }
 
-  ignore("minSampleByTemperature returns the coldest Sample") {
+  test("minSampleByTemperature returns the coldest Sample") {
     forAll { (samples: List[Sample]) =>
-      val parSamples = ParList.byPartitionSize(3, samples)
+      val parSamples = ParList.byPartitionSize(3, samples, ec)
 
       for {
         coldest <- minSampleByTemperature(parSamples)
@@ -35,7 +39,19 @@ class ParListTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks with P
     }
   }
 
-  ignore("averageTemperature example") {
+  test("size is consistent with List size") {
+    forAll { (numbers: ParList[Sample]) =>
+      assert(numbers.size === numbers.toList.size)
+
+    }
+  }
+
+
+  ignore("minSampleByTemperature is consistent wiht list min") { //Test oracles!! useful to ensure paralell and seq return the same
+    ???
+  }
+
+  test("averageTemperature example") {
     val samples = List(
       Sample("Africa", "Algeria", None, "Algiers", 8, 1, 2020, 50),
       Sample("Africa", "Algeria", None, "Algiers", 8, 1, 2020, 56.3),
@@ -45,12 +61,12 @@ class ParListTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks with P
       Sample("Africa", "Algeria", None, "Algiers", 8, 1, 2020, 34.7),
       Sample("Africa", "Algeria", None, "Algiers", 8, 1, 2020, 99.0),
     )
-    val parSamples = ParList.byPartitionSize(3, samples)
+    val parSamples = ParList.byPartitionSize(3, samples, ec)
 
     assert(averageTemperature(parSamples) == Some(53.6))
   }
 
-  ignore("summary is consistent between implementations") {
+  test("summary is consistent between implementations") {
     forAll { (samples: ParList[Sample]) =>
       val samplesList = samples.partitions.flatten
       val reference   = summaryList(samples.partitions.flatten)
@@ -64,6 +80,12 @@ class ParListTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks with P
         assert(reference.min == other.min)
         assert(reference.max == other.max)
       }
+    }
+  }
+
+  test("parFoldMap is consistent with foldMap") {
+    forAll { (samples: ParList[String], update: String => Int) => // Update is not necessary we could have used identity as the signature of foldLeft ensures we are using the function
+      assert(samples.foldMap(update)(Monoid.sumInt)  ==  samples.parFoldMap(update)(Monoid.sumInt))
     }
   }
 }

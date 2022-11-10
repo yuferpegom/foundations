@@ -2,6 +2,8 @@ package exercises.dataprocessing
 
 object ForLoopExercises {
 
+   
+
   def sum(numbers: List[Int]): Int = {
     var total = 0
 
@@ -14,8 +16,14 @@ object ForLoopExercises {
   // a. Implement `size` using a mutable state and a for loop
   // such as size(List(2,5,1,8)) == 4
   // and     size(Nil) == 0
-  def size[A](items: List[A]): Int =
-    ???
+  def size[A](items: List[A]): Int = {
+    var size = 0
+
+    for (item <- items)
+      size += 1 
+
+    size 
+  }
 
   // b. Implement `min` using a mutable state and a for loop
   // such as min(List(2,5,1,8)) == Some(1)

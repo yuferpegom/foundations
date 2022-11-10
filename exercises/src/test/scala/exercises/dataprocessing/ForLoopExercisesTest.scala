@@ -17,9 +17,26 @@ class ForLoopExercisesTest extends AnyFunSuite with ScalaCheckDrivenPropertyChec
     }
   }
 
-  ignore("size") {
+  test("size") {
     assert(size(List(2, 5, 1, 8)) == 4)
     assert(size(Nil) == 0)
+  }
+
+  test("size is consistent with List size") {
+    forAll { (numbers: List[Int]) =>
+      assert(size(numbers) == numbers.size)
+      if(numbers.isEmpty)
+        assert(size(numbers) == 0)
+    }
+  }
+
+
+  test("size is consistent with List concatenation") {
+    forAll { (numbers: List[Int], numbers1: List[Int]) =>
+      val totalConcatenated = numbers1.concat(numbers)
+      assert(size(numbers) + size(numbers1) == size(totalConcatenated))
+      assert(size(totalConcatenated) == numbers1.size + numbers.size)
+    }
   }
 
   ignore("min") {

@@ -1,10 +1,14 @@
 package exercises.dataprocessing
 
 import java.time.LocalDate
-
 import org.scalacheck.{Arbitrary, Gen}
 
+import scala.concurrent.ExecutionContext
+
 trait ParListTestInstances {
+
+  val ec: ExecutionContext = ThreadPoolUtil.fixedSizeExecutionContext(4)
+
   val sampleGen: Gen[Sample] =
     for {
       (region, country, state, city) <- Gen.oneOf(
@@ -38,7 +42,7 @@ trait ParListTestInstances {
     Arbitrary(
       Gen
         .listOf(Gen.listOf(arbA.arbitrary))
-        .map(partitions => new ParList(partitions))
+        .map(partitions => new ParList(partitions, ec))
     )
 
   val summaryGen: Gen[Summary] =

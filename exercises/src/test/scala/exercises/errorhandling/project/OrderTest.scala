@@ -1,6 +1,7 @@
 package exercises.errorhandling.project
 
-import exercises.errorhandling.project.OrderError.{EmptyBasket, InvalidStatus}
+import exercises.errorhandling.NEL
+import exercises.errorhandling.project.OrderError.{AddressIsRequired, EmptyBasket, InvalidStatus}
 import exercises.errorhandling.project.OrderGenerator._
 import org.scalacheck.Gen
 import org.scalatest.funsuite.AnyFunSuite
@@ -10,144 +11,131 @@ import java.time.{Duration, Instant}
 
 class OrderTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks {
 
-  ignore("checkout successful example") {
+  test("checkout successful example") {
+    val basket =  List(Item("A1", 2, 12.99))
     val order = Order(
       id = "AAA",
-      status = "Draft",
-      basket = List(Item("A1", 2, 12.99)),
-      deliveryAddress = None,
-      createdAt = Instant.now(),
-      submittedAt = None,
-      deliveredAt = None
+      status = Draft(basket),
+      createdAt = Instant.now()
     )
 
     order.checkout match {
       case Left(value)     => fail(s"Expected success but got $value")
-      case Right(newOrder) => assert(newOrder.status == "Checkout")
+      case Right(newOrder) => assert(newOrder.status == Checkout(NEL(basket.head, basket.tail), None))
     }
   }
 
-  ignore("checkout empty basket example") {
+  test("checkout empty basket example") {
     val order = Order(
       id = "AAA",
-      status = "Draft",
-      basket = Nil,
-      deliveryAddress = None,
-      createdAt = Instant.now(),
-      submittedAt = None,
-      deliveredAt = None
+      status = Draft(Nil),
+      createdAt = Instant.now()
     )
 
     assert(order.checkout == Left(EmptyBasket))
   }
 
-  ignore("checkout invalid status example") {
+//  test("checkout invalid status example") { do not apply anymore as addres is required when deliverin
+//    val nelBasket = NEL(Item("A1", 2, 12.99))
+//    val order = Order(
+//      id = "AAA",
+//      status = Delivered(nelBasket, None),
+//      deliveryAddress = None,
+//      createdAt = Instant.now(),
+//      submittedAt = None,
+//      deliveredAt = None
+//    )
+//
+//    assert(order.checkout == Left(InvalidStatus(Delivered(nelBasket))))
+//  }
+
+  test("submit successful example") {
+    val nelBasket = NEL(Item("A1", 2, 12.99))
+    val address = Address(12, "E16 8TR")
     val order = Order(
       id = "AAA",
-      status = "Delivered",
-      basket = List(Item("A1", 2, 12.99)),
-      deliveryAddress = None,
-      createdAt = Instant.now(),
-      submittedAt = None,
-      deliveredAt = None
+      status = Checkout(nelBasket, Some(address)),
+      createdAt = Instant.now()
     )
+    val submittedAt = Instant.now()
 
-    assert(order.checkout == Left(InvalidStatus("Delivered")))
-  }
-
-  ignore("submit successful example") {
-    val order = Order(
-      id = "AAA",
-      status = "Checkout",
-      basket = List(Item("A1", 2, 12.99)),
-      deliveryAddress = Some(Address(12, "E16 8TR")),
-      createdAt = Instant.now(),
-      submittedAt = None,
-      deliveredAt = None
-    )
-
-    order.submit(Instant.now()) match {
+    order.submit(submittedAt) match {
       case Left(value)     => fail(s"Expected success but got $value")
-      case Right(newOrder) => assert(newOrder.status == "Submitted")
+      case Right(newOrder) => assert(newOrder.status == Submitted(nelBasket, address, submittedAt))
     }
   }
 
-  ignore("submit no address example") {
+  test("submit no address example") {
+    val nelBasket = NEL(Item("A1", 2, 12.99))
     val order = Order(
       id = "AAA",
-      status = "Checkout",
-      basket = List(Item("A1", 2, 12.99)),
-      deliveryAddress = None,
-      createdAt = Instant.now(),
-      submittedAt = None,
-      deliveredAt = None
+      status = Checkout(nelBasket, None),
+      createdAt = Instant.now()
     )
 
-    assert(order.submit(Instant.now()) == Left(???)) // replace ??? by the error you created for that scenario
+    assert(order.submit(Instant.now()) == Left(AddressIsRequired))
   }
 
-  ignore("submit invalid status example") {
+  test("submit invalid status example") {
+    val nelBasket = NEL(Item("A1", 2, 12.99))
+    val address = Address(12, "E16 8TR")
+    val deliveredAt = Instant.now
+    val submittedAt = Instant.now
     val order = Order(
       id = "AAA",
-      status = "Delivered",
-      basket = List(Item("A1", 2, 12.99)),
-      deliveryAddress = Some(Address(12, "E16 8TR")),
-      createdAt = Instant.now(),
-      submittedAt = None,
-      deliveredAt = None
+      status = Delivered(nelBasket, address, submittedAt, deliveredAt),
+      createdAt = Instant.now()
     )
 
-    assert(order.submit(Instant.now()) == Left(InvalidStatus("Delivered")))
+    assert(order.submit(Instant.now()) == Left(InvalidStatus(Delivered(nelBasket, address, submittedAt, deliveredAt))))
   }
 
-  ignore("submit empty basket example") {
-    val order = Order(
-      id = "AAA",
-      status = "Checkout",
-      basket = Nil,
-      deliveryAddress = Some(Address(12, "E16 8TR")),
-      createdAt = Instant.now(),
-      submittedAt = None,
-      deliveredAt = None
-    )
+//  test("submit empty basket example") { // Don't apply anymore as the model won't allow to represent this state
+//    val order = Order(
+//      id = "AAA",
+//      status = Checkout,
+//      basket = Nil,
+//      deliveryAddress = Some(Address(12, "E16 8TR")),
+//      createdAt = Instant.now(),
+//      submittedAt = None,
+//      deliveredAt = None
+//    )
+//
+//    assert(order.submit(Instant.now()) == Left(EmptyBasket))
+//  }
 
-    assert(order.submit(Instant.now()) == Left(EmptyBasket))
-  }
+  test("happy path") {
+    forAll(orderIdGen, instantGen, durationGen, durationGen, nelOf(itemGen), addressGen) {
+      (orderId, createdAt, submittedDelay, deliveryDelay, items, deliveryAddress) =>
 
-  ignore("happy path") {
-    val orderId         = "ORD0001"
-    val createdAt       = Instant.now()
-    val submittedAt     = createdAt.plusSeconds(5)
-    val deliveredAt     = submittedAt.plusSeconds(3600 * 30) // 30 hours
-    val order           = Order.empty(orderId, createdAt)
-    val item1           = Item("AAA", 2, 24.99)
-    val item2           = Item("BBB", 1, 15.49)
-    val deliveryAddress = Address(23, "E16 8FV")
+      val submittedAt     = createdAt.plus(submittedDelay)
+      val deliveredAt     = submittedAt.plus(deliveryDelay) // 30 hours
+      val order           = Order.empty(orderId, createdAt)
+      val deliveryAddress = Address(23, "E16 8FV")
 
-    val result = for {
-      order         <- order.addItem(item1)
-      order         <- order.addItem(item2)
-      order         <- order.checkout
-      order         <- order.updateDeliveryAddress(deliveryAddress)
-      order         <- order.submit(submittedAt)
-      orderDuration <- order.deliver(deliveredAt)
-    } yield orderDuration
+      val result = for {
+        order         <- order.addItems(items)
+        order         <- order.checkout
+        order         <- order.updateDeliveryAddress(deliveryAddress)
+        order         <- order.submit(submittedAt)
+        orderDuration <- order.deliver(deliveredAt)
+      } yield orderDuration
 
-    assert(
-      result.map(_._1) == Right(
-        Order(
-          id = orderId,
-          status = "Delivered",
-          basket = List(item1, item2),
-          deliveryAddress = Some(deliveryAddress),
-          createdAt = createdAt,
-          submittedAt = Some(submittedAt),
-          deliveredAt = Some(deliveredAt)
+      assert(
+        result == Right(
+          Order(
+            id = orderId,
+            status = Delivered(items, deliveryAddress, submittedAt, deliveredAt),
+            createdAt = createdAt
+          )
         )
       )
-    )
 
-    assert(result.map(_._2) == Right(Duration.ofHours(30)))
-  }
+        val deliveryDuration = Duration.between(submittedAt, deliveredAt)
+
+      assert(result.map(_.status) == Right(deliveryDuration))
+    }
+
+    }
 
 }

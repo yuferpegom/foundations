@@ -1,13 +1,29 @@
 package exercises.dataprocessing
 
+import scala.concurrent.ExecutionContext
+
 object TemperatureExercises {
+
+  implicit val ec: ExecutionContext = ThreadPoolUtil.fixedSizeExecutionContext(4)
   // b. Implement `minSampleByTemperature` which finds the `Sample` with the coldest temperature.
   // `minSampleByTemperature` should work as follow:
   // Step 1: Find the local minimums (for each partition the `Sample` with the coldest temperature).
   // Step 2: Find the minimum value among the local minimums.
   // Note: We'll write test in the file `ParListTest.scala`
-  def minSampleByTemperature(samples: ParList[Sample]): Option[Sample] =
-    ???
+  def minSampleByTemperature(samples: ParList[Sample]): Option[Sample] = {
+    samples.parFoldMap(sample => Option(sample))(Monoid.minSample)
+//    minSampleByTemperaturePerPartitionList(samples.partitions.flatMap(minSampleByTemperaturePerPartitionList))
+  }
+
+  def minSampleByTemperaturePerPartitionList(partition: List[Sample]): Option[Sample] = {
+    partition.foldLeft(Option.empty[Sample]){
+      case (None, sample) => Some(sample)
+      case (Some(minSample), sample) => 
+        if(minSample.temperatureFahrenheit < sample.temperatureFahrenheit)
+          Some(minSample)
+        else Some(sample)
+    }
+  }
 
   // c. Implement `averageTemperature` which finds the average temperature across all `Samples`.
   // `averageTemperature` should work as follow:
@@ -20,8 +36,57 @@ object TemperatureExercises {
   // Step 3: Divide the total temperature by the size of dataset.
   // In case the input `ParList` is empty we return `None`.
   // Bonus: Can you calculate the size and sum in one go?
-  def averageTemperature(samples: ParList[Sample]): Option[Double] =
-    ???
+  def averageTemperature(samples: ParList[Sample]): Option[Double] = {
+    // val temperatureAndSizePerPartition: List[(Double, Double)] = 
+    //   samples
+    //   .partitions
+    //   .map(samples => (totalTemperaturePerPartitionList(samples.map(_.temperatureFahrenheit)), samples.size))
+    // val totalSize = temperatureAndSizePerPartition.map(_._2).sum
+    // val temperaturePerPartition = temperatureAndSizePerPartition.map(_._1)
+    // val totalTemperature = totalTemperaturePerPartitionList(temperaturePerPartition) // THIS ACTUALLY WORKS
+
+//    val (totalTemperature, totalSize) = sumTuples(samples.partitions.map(sumSizePerPartition))
+//    val (totalTemperature, totalSize) = samples
+//      .map(sample => (sample.temperatureFahrenheit, 1))
+//      .monoFoldLeft(Monoid.sumIntDoubleTuple)
+    val (totalTemperature, totalSize) = samples
+     .parFoldMap(sample => (sample.temperatureFahrenheit, 1))(Monoid.sumIntDoubleTuple)
+    if(totalSize == 0) None
+    else Some(totalTemperature / totalSize)
+  }
+
+  def totalTemperaturePerPartitionList(temperatures: List[Double]): Double = {
+    temperatures.foldLeft(0.0)((temperatureAcc, temperature) => temperatureAcc + temperature)
+  }
+
+  def sumSizePerPartition(partition: List[Sample]): (Double, Int) = {
+    partition.foldLeft[(Double, Int)](0.0, 0) {
+      case ((sum, size), sample) => ((sum + sample.temperatureFahrenheit), size + 1)
+    }
+  }
+
+  def sumTuples(tuples: List[(Double, Int)]): (Double, Int) = {
+    tuples.foldLeft[(Double, Int)]((0.0, 0)) {
+      case ((sum1, size1), (sum2, size2)) => ((sum1 + sum2), (size1 + size2))
+    }
+  }
+
+  def sumTemperatures(samples: ParList[Sample]): Double = {
+    foldLeft(samples, 0.0)(
+      combineElements = (state, sample) => state + sample.temperatureFahrenheit,
+      combineIntermediateResults = _ + _
+    )
+  }
+
+  /**
+   * THIS is map reduce!!!!!
+   * @param samples
+   * @return
+   */
+  def sumTemperaturesMonoFoldLeft(samples: ParList[Sample]): Double = {
+    samples
+      .parFoldMap(_.temperatureFahrenheit)(Monoid.sumDouble)
+  }
 
   // d. Implement `foldLeft` and then move it inside the class `ParList`.
   // `foldLeft` should work as follow:
@@ -31,20 +96,28 @@ object TemperatureExercises {
   // Partition 1: List(a1, b1, c1, d1, e1, f1) ->    res1 (intermediate result of partition 1) \
   // Partition 2: List(a2, b2, c2, d2, e2, f2) ->    res2 (intermediate result of partition 2) - finalResult
   // Partition 3:                          Nil -> default (partition 3 is empty)               /
-  def foldLeft[From, To](parList: ParList[From], default: To)(combine: (To, From) => To): To =
-    ???
+  def foldLeft[From, To](parList: ParList[From], default: To)(
+    combineElements: (To, From) => To, 
+    combineIntermediateResults: (To, To) => To): To = {
+  //   val intermediate: List[To] = parList.partitions.map(l => test(l, default)(combine))
+    // val c: (To, To) => To = combine
+
+    // Fold left cannot be implemented using this signature !!!!!!!!!!!!
+    // we refactor the signature to receive 2 combine functions
+    // test[To, To](intermediate, default)(c)
+    parList.partitions
+      .map(_.foldLeft(default)(combineElements))
+      .foldLeft(default)(combineIntermediateResults)
+  }
+
+  // def test[From, To](input: List[From], default: To)(combine: (To, From) => To): To = {
+  //   input.foldLeft(default)(combine)
+  // }
 
   // e. Implement `monoFoldLeft`, a version of `foldLeft` that does not change the element type.
   // Then move `monoFoldLeft` inside  the class `ParList`.
   // `monoFoldLeft` should work as follow:
-  // Step 1: Fold each partition into a single value.
-  // Step 2: Fold the results of all partitions together.
-  // For example,
-  // Partition 1: List(a1, b1, c1, d1, e1, f1) ->       x   (folded partition 1)  \
-  // Partition 2: List(a2, b2, c2, d2, e2, f2) ->       y   (folded partition 2) - z (final result)
-  // Partition 3:                          Nil -> default (partition 3 is empty)  /
-  def monoFoldLeft[A](parList: ParList[A], default: A)(combine: (A, A) => A): A =
-    ???
+  // moved
 
   // `summaryList` iterate 4 times over `samples`, one for each field.
   def summaryList(samples: List[Sample]): Summary =
@@ -86,15 +159,54 @@ object TemperatureExercises {
   // should return the same result as `summaryList`
   def summaryParList(samples: ParList[Sample]): Summary =
     Summary(
-      min = ???,
-      max = ???,
-      sum = ???,
-      size = ???
+      min = samples.parFoldMap(sample => Option(sample))(Monoid.minSample),
+      max = samples.parFoldMap(sample => Option(sample))(Monoid.maxSample),
+      sum = samples.parFoldMap(_.temperatureFahrenheit)(Monoid.sumDouble),
+      size = samples.parFoldMap(_ => 1)(Monoid.sumInt)
     )
 
   // Implement `summaryParListOnePass` using `parFoldMap` only ONCE.
   // Note: In `ParListTest.scala`, there is already a test checking that `summaryParListOnePass`
   // should return the same result as `summaryList`
-  def summaryParListOnePass(samples: ParList[Sample]): Summary =
-    ???
+  def summaryParListOnePass(samples: ParList[Sample]): Summary = {
+    samples.parFoldMap(
+      sample => Summary(
+        Some(sample),
+        Some(sample),
+        sample.temperatureFahrenheit,
+        1
+      )
+    )(Monoid.summary)
+  }
+
+  def sampleToOutput[A](sample: Sample, key: Sample => A ): Map[A, Summary] = {
+    Map(
+      key(sample) -> Summary(
+        min = Some(sample),
+        max = Some(sample),
+        sum = sample.temperatureFahrenheit,
+        size = 1
+      )
+    )
+  }
+  def sampleToOutputByCity(sample: Sample) = sampleToOutput(sample, _.city)
+
+  def monoidOutput[A]: Monoid[Map[A, Summary]] = new Monoid[Map[A, Summary]] {
+    override def default: Map[A, Summary] = Map.empty
+
+    override def combine(first: Map[A, Summary], second: Map[A, Summary]): Map[A, Summary] = {
+      second.foldLeft(first) {
+        case (state, (city, summary)) =>
+          state.updatedWith(city) {
+            case Some(currentSummary) =>
+              Some(Monoid.summary.combine(summary, currentSummary))
+            case None => Some(summary)
+          }
+      }
+    }
+  }
+
+  def aggregate[A](samples: ParList[Sample], sampleToOutput: Sample => Map[A, Summary]): Map[A, Summary] = {
+    samples.parFoldMap(sampleToOutput)(monoidOutput)
+  }
 }

@@ -45,7 +45,7 @@ object OrderGenerator {
       orderId   <- orderIdGen
       createdAt <- instantGen
       items     <- Gen.listOf(itemGen)
-    } yield Order(orderId, "Draft", items, None, createdAt, None, None)
+    } yield Order(orderId, Draft(items), createdAt)
 
   val checkoutGen: Gen[Order] =
     for {
@@ -53,7 +53,7 @@ object OrderGenerator {
       createdAt <- instantGen
       items     <- Gen.listOf(itemGen)
       address   <- Gen.option(addressGen)
-    } yield Order(orderId, "Checkout", items, address, createdAt, None, None)
+    } yield Order(orderId, Checkout(NEL(items.head, items.tail), address), createdAt)
 
   val submittedGen: Gen[Order] =
     for {
@@ -63,7 +63,7 @@ object OrderGenerator {
       address   <- addressGen
       delay     <- durationGen
       submittedAt = createdAt.plus(delay)
-    } yield Order(orderId, "Submitted", items, Some(address), createdAt, Some(submittedAt), None)
+    } yield Order(orderId, Submitted(NEL(items.head, items.tail), address, submittedAt), createdAt)
 
   val deliveredGen: Gen[Order] =
     for {
@@ -75,7 +75,7 @@ object OrderGenerator {
       submittedAt = createdAt.plus(delay1)
       delay2 <- durationGen
       deliveredAt = submittedAt.plus(delay2)
-    } yield Order(orderId, "Delivered", items, Some(address), createdAt, Some(submittedAt), Some(deliveredAt))
+    } yield Order(orderId, Delivered(NEL(items.head, items.tail), address, submittedAt, deliveredAt), createdAt)
 
   val orderGen: Gen[Order] =
     Gen.oneOf(draftGen, checkoutGen, submittedGen, deliveredGen)
