@@ -30,10 +30,22 @@ class StackSafeRecursiveExercisesTest extends AnyFunSuite with ScalaCheckDrivenP
     }
   }
 
-  test("min") {}
+  test("min") {
+    forAll { (numbers: List[Int]) =>
+      assert(min(numbers) == (numbers.minOption))
+   }
+  }
 
-  test("reverse") {}
+  test("reverse is consistent with std library") {
+    forAll { (numbers: List[Int]) =>
+      assert(reverse(numbers) == (numbers.reverse))
+   }
+  }
 
-  test("foldLeft") {}
+  test("foldLeft is consistent with std library") {
+    forAll { (numbers: List[Int]) =>
+      assert(foldLeft(numbers, 0)(_ + _) == numbers.foldLeft(0)(_ + _))
+    }
+  }
 
 }

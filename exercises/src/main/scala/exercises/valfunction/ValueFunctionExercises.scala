@@ -54,7 +54,7 @@ object ValueFunctionExercises {
      name
      // res14: "Jhon Doe"
      They have limited use cases
-     Scala needs to ensure the val is evaluated only once - hard in a concurrent idea
+     Scala needs to ensure the lazy val is evaluated only once - hard in a concurrent idea
      Not good idea to use it if performance is important
 
   Parameteres evaluation

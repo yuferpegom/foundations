@@ -29,15 +29,22 @@ class ValueFunctionExercisesTest extends AnyFunSuite with ScalaCheckDrivenProper
     }
   }
 
-  ///////////////////////
-  // Exercise 2: Point
-  ///////////////////////
-
   test("secret all are *") {
     forAll { (text: String) =>
       secret(text).foreach(_.equals('*'))
     }
   }
+
+  test("secret must be idempotent") {
+    forAll { (text: String) =>
+      val once = secret(text)
+      assert(once.equals(secret(secret(text))))
+    }
+  }
+
+  ///////////////////////
+  // Exercise 2: Point
+  ///////////////////////
 
   test("is valid username") {
     forAll { (username: String) =>

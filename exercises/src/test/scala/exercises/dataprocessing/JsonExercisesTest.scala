@@ -35,7 +35,7 @@ class JsonExercisesTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks 
     )
   }
 
-  ignore("anonymize") {
+  test("anonymize") {
     assert(
       anonymize(john) == JsonObject(
         Map(
@@ -52,16 +52,18 @@ class JsonExercisesTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks 
     )
   }
 
-  ignore("search") {
-    assert(search(JsonObject(Map.empty), "ll") == false)
-    assert(search(JsonNumber(5), "ll") == false)
-    assert(search(JsonString("Hello"), "ll") == true)
-    assert(search(JsonObject(Map("message" -> JsonString("Hello"))), "ll") == true)
-    assert(search(JsonObject(Map("message" -> JsonString("Hello"))), "ss") == false)
-    assert(search(JsonObject(Map("message" -> JsonString("hi"))), "ll") == false)
+  test("search") {
+    assert(search(JsonObject(Map.empty), "ll", 0) == false)
+    assert(search(JsonNumber(5), "ll", 0) == false)
+    assert(search(JsonString("Hello"), "ll", 0) == true)
+    assert(search(JsonObject(Map("message" -> JsonString("Hello"))), "ll", 1) == true)
+    assert(search(JsonObject(Map("message" -> JsonString("Hello"))), "ss", 1) == false)
+    assert(search(JsonObject(Map("message" -> JsonString("hi"))), "ll", 1) == false)
+    assert(search(john, "o", 2) == true)
+    assert(search(john, "Cody", 1) == false)
   }
 
-  ignore("depth") {
+  test("depth") {
     assert(depth(JsonNumber(1)) == 0)
     assert(depth(JsonObject(Map.empty)) == 0)
     assert(depth(JsonObject(Map("k" -> JsonNumber(1)))) == 1)
