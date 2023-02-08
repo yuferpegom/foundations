@@ -16,8 +16,15 @@ object Monoid {
     override def combine(first: A, second: A): A = numeric.plus(first, second)
   }
   val sumInt: Monoid[Int] = sum
-
   val sumDouble: Monoid[Double] = sum
+  
+  def times[A](implicit numeric: Numeric[A]): Monoid[A] = new Monoid[A] {
+    override def default: A = numeric.one
+
+    override def combine(first: A, second: A): A = numeric.times(first, second)
+  }
+
+  val timesInt: Monoid[Int] = times
 
   def zip[A, B](monoidA: Monoid[A], monoidB: Monoid[B]): Monoid[(A, B)] = new Monoid[(A, B)] {
     override def default: (A, B) = (monoidA.default, monoidB.default)

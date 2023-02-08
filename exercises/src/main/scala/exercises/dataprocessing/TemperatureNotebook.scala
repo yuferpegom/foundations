@@ -35,16 +35,25 @@ object TemperatureNotebook extends App {
   // a. Implement `samples`, a `ParList` containing all the `Samples` in `successes`.
   // Partition `parSamples` so that it contains 10 partitions of roughly equal size.
   // Note: Check `ParList` companion object
+  
+  // this one does not split the load correctly, ie
+  // if there are 51 elements and we divide by 10 we get 10 partitions plus 1 with 1 lement
+  // we need to round up instead of down ie 51 / 10 is not 5 but 6
+
+  // val partitionSize = samples.size / 10 
+
+  // This works better as we get the nex number and not round it to the previos one, ie 51/10 = 6
   val partitionSize = math.ceil(samples.length.toDouble / 10).toInt
-  val parSamples: ParList[Sample] =
-    ParList.byPartitionSize(partitionSize, samples, ec)
+
+  lazy val parSamples: ParList[Sample] =
+    ParList.byPartitionSize(partitionSize, samples)
 
   // parSamples.partitions.zipWithIndex.foreach { case (partition, index) =>
   //   println(s"Partition $index has size ${partition.size}")
   // }
 
   // b. Implement `minSampleByTemperature` in TemperatureExercises
-  lazy val coldestSample: Option[Sample] =
+  val coldestSample: Option[Sample] =
     TemperatureExercises.minSampleByTemperature(parSamples)
 
   println(s"The coldest sample is $coldestSample")
@@ -55,12 +64,12 @@ object TemperatureNotebook extends App {
 
   println(s"The average temperature is $averageTemperature")
 
-  parSamples.parFoldMap(_.temperatureFahrenheit)(Monoid.sumDouble)
+  // parSamples.parFoldMap(_.temperatureFahrenheit)(Monoid.sumDouble)
 
-  TemperatureExercises.aggregate(parSamples, TemperatureExercises.sampleToOutputByCity).foreach {
-    case (city, summary) =>
-      println(s"The summary for the city $city is $summary")
-  }
+  // TemperatureExercises.aggregate(parSamples, TemperatureExercises.sampleToOutputByCity).foreach {
+  //   case (city, summary) =>
+  //     println(s"The summary for the city $city is $summary")
+  // }
 
   //////////////////////
   // Benchmark ParList
@@ -71,24 +80,24 @@ object TemperatureNotebook extends App {
   // * List map + sum
   // * TODO ParList foldMap
   // * TODO ParList parFoldMap
-  bench("sum", iterations = 200, warmUpIterations = 40)(
-    Labelled("List foldLeft", () => samples.foldLeft(0.0)((state, sample) => state + sample.temperatureFahrenheit)),
-    Labelled("List map + sum", () => samples.map(_.temperatureFahrenheit).sum),
+  // bench("sum", iterations = 200, warmUpIterations = 40)(
+  //   Labelled("List foldLeft", () => samples.foldLeft(0.0)((state, sample) => state + sample.temperatureFahrenheit)),
+  //   Labelled("List map + sum", () => samples.map(_.temperatureFahrenheit).sum),
 //    Labelled("ParList foldMap", () => ???),
 //    Labelled("ParList parFoldMap", () => ???),
-  )
+  // )
 
   // Compare the runtime performance of various implementations of `summary`
   // * List with 4 iterations
   // * List with 1 iterations
   // * TODO ParList with 4 iterations
   // * TODO ParList with 1 iteration
-  bench("summary", iterations = 200, warmUpIterations = 40)(
-    Labelled("List 4 iterations", () => TemperatureExercises.summaryList(samples)),
-    Labelled("List 1 iteration", () => TemperatureExercises.summaryListOnePass(samples)),
-    Labelled("ParList 4 iterations", () => TemperatureExercises.summaryParList(parSamples)),
-    Labelled("ParList 1 iteration", () => TemperatureExercises.summaryParListOnePass(parSamples)),
-  )
+  // bench("summary", iterations = 200, warmUpIterations = 40)(
+  //   Labelled("List 4 iterations", () => TemperatureExercises.summaryList(samples)),
+  //   Labelled("List 1 iteration", () => TemperatureExercises.summaryListOnePass(samples)),
+  //   Labelled("ParList 4 iterations", () => TemperatureExercises.summaryParList(parSamples)),
+  //   Labelled("ParList 1 iteration", () => TemperatureExercises.summaryParListOnePass(parSamples)),
+  // )
 
   //////////////////////////////////////////////
   // Bonus question (not covered by the video)

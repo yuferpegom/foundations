@@ -42,7 +42,7 @@ trait ParListTestInstances {
     Arbitrary(
       Gen
         .listOf(Gen.listOf(arbA.arbitrary))
-        .map(partitions => new ParList(partitions, ec))
+        .map(partitions => new ParList(partitions))
     )
 
   val summaryGen: Gen[Summary] =

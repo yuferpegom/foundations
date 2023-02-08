@@ -11,8 +11,9 @@ object TemperatureExercises {
   // Step 2: Find the minimum value among the local minimums.
   // Note: We'll write test in the file `ParListTest.scala`
   def minSampleByTemperature(samples: ParList[Sample]): Option[Sample] = {
-    samples.parFoldMap(sample => Option(sample))(Monoid.minSample)
-//    minSampleByTemperaturePerPartitionList(samples.partitions.flatMap(minSampleByTemperaturePerPartitionList))
+    // samples.parFoldMap(sample => Option(sample))(Monoid.minSample) // this is the answer
+    val mins = samples.partitions.flatMap(minSampleByTemperaturePerPartitionList)
+    minSampleByTemperaturePerPartitionList(mins)
   }
 
   def minSampleByTemperaturePerPartitionList(partition: List[Sample]): Option[Sample] = {
@@ -45,14 +46,36 @@ object TemperatureExercises {
     // val temperaturePerPartition = temperatureAndSizePerPartition.map(_._1)
     // val totalTemperature = totalTemperaturePerPartitionList(temperaturePerPartition) // THIS ACTUALLY WORKS
 
-//    val (totalTemperature, totalSize) = sumTuples(samples.partitions.map(sumSizePerPartition))
-//    val (totalTemperature, totalSize) = samples
-//      .map(sample => (sample.temperatureFahrenheit, 1))
-//      .monoFoldLeft(Monoid.sumIntDoubleTuple)
+
+    // val (totalTemperature, totalSize) = samples
+    //   .map(sample => (sample.temperatureFahrenheit, 1))
+    //   .monoFoldLeft(Monoid.sumIntDoubleTuple)
+
+    // val (totalTemperature, totalSize) = samples
+    //  .parFoldMap(sample => (sample.temperatureFahrenheit, 1))(Monoid.sumIntDoubleTuple)
+    // if(totalSize == 0) None
+    // else Some(totalTemperature / totalSize)
+
+    // first version
+    // val (totalTemperature, totalSize) = sumTuples(samples.partitions.map(sumSizePerPartition))
+
+    // second version: Using foldLeft, this should be receivint 2 combine functions (I didn't do that``)
+    // val (totalTemperature, totalSize) = samples
+    //   .map(sample => (sample.temperatureFahrenheit, 1))
+    //   .foldLeft((0.0, 0)) { 
+    //     case ((temperatureAcc, sizeAcc), (temperature, size)) => (temperatureAcc + temperature, sizeAcc + size)
+    //   }
+
+    // Instead of the above we use the monoFoldLeft version
+    // Third version: using monoFoldLeft without the monoid
     val (totalTemperature, totalSize) = samples
-     .parFoldMap(sample => (sample.temperatureFahrenheit, 1))(Monoid.sumIntDoubleTuple)
+      .map(sample => (sample.temperatureFahrenheit, 1))
+      .monoFoldLeft((0.0, 0)) { 
+        case ((temperatureAcc, sizeAcc), (temperature, size)) => (temperatureAcc + temperature, sizeAcc + size)
+      }
+
     if(totalSize == 0) None
-    else Some(totalTemperature / totalSize)
+    else Some(totalTemperature / totalSize) 
   }
 
   def totalTemperaturePerPartitionList(temperatures: List[Double]): Double = {
