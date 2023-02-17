@@ -11,9 +11,18 @@ object TemperatureExercises {
   // Step 2: Find the minimum value among the local minimums.
   // Note: We'll write test in the file `ParListTest.scala`
   def minSampleByTemperature(samples: ParList[Sample]): Option[Sample] = {
-    // samples.parFoldMap(sample => Option(sample))(Monoid.minSample) // this is the answer
-    val mins = samples.partitions.flatMap(minSampleByTemperaturePerPartitionList)
-    minSampleByTemperaturePerPartitionList(mins)
+
+    // Frist implementation: Using flatMap and then fold left
+
+    // val mins = samples.partitions.flatMap(minSampleByTemperaturePerPartitionList)
+    // minSampleByTemperaturePerPartitionList(mins)
+
+    // Secondi implementation: Using foldLeft
+    // samples.foldMap(sample => Option(sample))(Monoid.minSample)
+
+    // third implementation using par computation
+
+    samples.parFoldMap(sample => Option(sample))(Monoid.minSample)
   }
 
   def minSampleByTemperaturePerPartitionList(partition: List[Sample]): Option[Sample] = {
@@ -48,10 +57,6 @@ object TemperatureExercises {
 
 
     // val (totalTemperature, totalSize) = samples
-    //   .map(sample => (sample.temperatureFahrenheit, 1))
-    //   .monoFoldLeft(Monoid.sumIntDoubleTuple)
-
-    // val (totalTemperature, totalSize) = samples
     //  .parFoldMap(sample => (sample.temperatureFahrenheit, 1))(Monoid.sumIntDoubleTuple)
     // if(totalSize == 0) None
     // else Some(totalTemperature / totalSize)
@@ -68,11 +73,26 @@ object TemperatureExercises {
 
     // Instead of the above we use the monoFoldLeft version
     // Third version: using monoFoldLeft without the monoid
-    val (totalTemperature, totalSize) = samples
-      .map(sample => (sample.temperatureFahrenheit, 1))
-      .monoFoldLeft((0.0, 0)) { 
-        case ((temperatureAcc, sizeAcc), (temperature, size)) => (temperatureAcc + temperature, sizeAcc + size)
-      }
+    // val (totalTemperature, totalSize) = samples
+    //   .map(sample => (sample.temperatureFahrenheit, 1))
+    //   .monoFoldLeft((0.0, 0)) { 
+    //     case ((temperatureAcc, sizeAcc), (temperature, size)) => (temperatureAcc + temperature, sizeAcc + size)
+    //   }
+
+
+    // Fourth version: Using map and mono fold left and the corresponding monoid  
+
+    // val (totalTemperature, totalSize) = samples
+    //   .map(sample => (sample.temperatureFahrenheit, 1))
+    //   .monoFoldLeft(Monoid.sumIntDoubleTuple)
+
+    // Fifth version: Uses foldMap (also known as map reduce)
+
+    // val (totalTemperature, totalSize) = samples.foldMap(sample => (sample.temperatureFahrenheit, 1))(Monoid.sumIntDoubleTuple)
+
+    // Sixth version: Uses parFoldMap (also known as map reduce)
+
+    val (totalTemperature, totalSize) = samples.parFoldMap(sample => (sample.temperatureFahrenheit, 1))(Monoid.sumIntDoubleTuple)
 
     if(totalSize == 0) None
     else Some(totalTemperature / totalSize) 
@@ -202,32 +222,73 @@ object TemperatureExercises {
     )(Monoid.summary)
   }
 
-  def sampleToOutput[A](sample: Sample, key: Sample => A ): Map[A, Summary] = {
-    Map(
-      key(sample) -> Summary(
-        min = Some(sample),
-        max = Some(sample),
-        sum = sample.temperatureFahrenheit,
-        size = 1
-      )
-    )
+  // def sampleToOutput[A](sample: Sample, key: Sample => A ): Map[A, Summary] = {
+  //   Map(
+  //     key(sample) -> Summary(
+  //       min = Some(sample),
+  //       max = Some(sample),
+  //       sum = sample.temperatureFahrenheit,
+  //       size = 1
+  //     )
+  //   )
+  // }
+  // def sampleToOutputByCity(sample: Sample) = sampleToOutput(sample, _.city)
+
+  // def monoidOutput[A]: Monoid[Map[A, Summary]] = new Monoid[Map[A, Summary]] {
+  //   override def default: Map[A, Summary] = Map.empty
+
+  //   override def combine(first: Map[A, Summary], second: Map[A, Summary]): Map[A, Summary] = {
+  //     second.foldLeft(first) {
+  //       case (state, (city, summary)) =>
+  //         state.updatedWith(city) {
+  //           case Some(currentSummary) =>
+  //             Some(Monoid.summary.combine(summary, currentSummary))
+  //           case None => Some(summary)
+  //         }
+  //     }
+  //   }
+  // }
+
+  // def aggregate[A](samples: ParList[Sample], sampleToOutput: Sample => Map[A, Summary]): Map[A, Summary] = {
+  //   samples.parFoldMap(sampleToOutput)(monoidOutput)
+  // }
+
+
+  val sampleToSummary: Sample => Summary = sample => Summary(
+    min = Some(sample),
+    max = Some(sample),
+    sum = sample.temperatureFahrenheit,
+    1
+  )
+
+  // This is the same as before only that I was tryng to
+  def sampleToOutput[Key](sample: Sample, labels: Sample => List[Key] ): Map[Key, Summary] = {
+    // This work but there is an easiest way
+    // labels(sample).foldLeft(Map.empty[Key, Summary]) {
+    //   case (summary, key) => 
+    //     summary.updatedWith(key) {
+    //       case Some(currentSummary) => Some(Monoid.summary.combine(sampleToSummary(sample), currentSummary))
+    //       case None => Some(sampleToSummary(sample))
+    //     }
+    // }
+    labels(sample).map(key => (key -> sampleToSummary(sample))).toMap
   }
-  def sampleToOutputByCity(sample: Sample) = sampleToOutput(sample, _.city)
 
   def monoidOutput[A]: Monoid[Map[A, Summary]] = new Monoid[Map[A, Summary]] {
     override def default: Map[A, Summary] = Map.empty
 
     override def combine(first: Map[A, Summary], second: Map[A, Summary]): Map[A, Summary] = {
-      second.foldLeft(first) {
-        case (state, (city, summary)) =>
-          state.updatedWith(city) {
-            case Some(currentSummary) =>
-              Some(Monoid.summary.combine(summary, currentSummary))
-            case None => Some(summary)
-          }
+      second.foldLeft(first) { case (state, (label, summary)) => 
+        state.get(label) match {
+          case Some(value) => 
+            state.updated(label, Monoid.summary.combine(value, summary))
+          case None => state.updated(label, summary)
+        }
       }
     }
   }
+
+  def sampleToOutputByCity(sample: Sample): Map[String, Summary] = sampleToOutput(sample, state => List(state.city))
 
   def aggregate[A](samples: ParList[Sample], sampleToOutput: Sample => Map[A, Summary]): Map[A, Summary] = {
     samples.parFoldMap(sampleToOutput)(monoidOutput)

@@ -8,6 +8,8 @@ import kantan.csv.ops._
 // Run the notebook using green arrow (if available in your IDE)
 // or run `sbt` in your terminal to open sbt in shell mode then type:
 // exercises/runMain exercises.dataprocessing.TemperatureNotebook
+
+import scala.concurrent.ExecutionContext.Implicits.global
 object TemperatureNotebook extends App {
 
   val ec = fixedSizeExecutionContext(4)
@@ -66,6 +68,11 @@ object TemperatureNotebook extends App {
 
   // parSamples.parFoldMap(_.temperatureFahrenheit)(Monoid.sumDouble)
 
+  TemperatureExercises.aggregate(parSamples, TemperatureExercises.sampleToOutputByCity).foreach {
+    case (label, summary) =>
+      println(s"The summary for the label $label is $summary")
+  }
+
   // TemperatureExercises.aggregate(parSamples, TemperatureExercises.sampleToOutputByCity).foreach {
   //   case (city, summary) =>
   //     println(s"The summary for the city $city is $summary")
@@ -80,24 +87,26 @@ object TemperatureNotebook extends App {
   // * List map + sum
   // * TODO ParList foldMap
   // * TODO ParList parFoldMap
-  // bench("sum", iterations = 200, warmUpIterations = 40)(
-  //   Labelled("List foldLeft", () => samples.foldLeft(0.0)((state, sample) => state + sample.temperatureFahrenheit)),
-  //   Labelled("List map + sum", () => samples.map(_.temperatureFahrenheit).sum),
-//    Labelled("ParList foldMap", () => ???),
-//    Labelled("ParList parFoldMap", () => ???),
-  // )
+  bench("sum", iterations = 200, warmUpIterations = 40, ignore = true)(
+    Labelled("List foldLeft", () => samples.foldLeft(0.0)((state, sample) => state + sample.temperatureFahrenheit)),
+    Labelled("List map + sum", () => samples.map(_.temperatureFahrenheit).sum),
+    Labelled("ParList foldMap", () => parSamples.foldMap(_.temperatureFahrenheit)(Monoid.sumDouble)),
+    Labelled("ParList parFoldMap", () => parSamples.parFoldMap(_.temperatureFahrenheit)(Monoid.sumDouble)),
+  )
 
   // Compare the runtime performance of various implementations of `summary`
   // * List with 4 iterations
   // * List with 1 iterations
   // * TODO ParList with 4 iterations
   // * TODO ParList with 1 iteration
-  // bench("summary", iterations = 200, warmUpIterations = 40)(
-  //   Labelled("List 4 iterations", () => TemperatureExercises.summaryList(samples)),
-  //   Labelled("List 1 iteration", () => TemperatureExercises.summaryListOnePass(samples)),
-  //   Labelled("ParList 4 iterations", () => TemperatureExercises.summaryParList(parSamples)),
-  //   Labelled("ParList 1 iteration", () => TemperatureExercises.summaryParListOnePass(parSamples)),
-  // )
+
+  // NOTE: It is better iterate smart than using parallelism
+  bench("summary", iterations = 200, warmUpIterations = 40, ignore = true)(
+    Labelled("List 4 iterations", () => TemperatureExercises.summaryList(samples)),
+    Labelled("List 1 iteration", () => TemperatureExercises.summaryListOnePass(samples)),
+    Labelled("ParList 4 iterations", () => TemperatureExercises.summaryParList(parSamples)),
+    Labelled("ParList 1 iteration", () => TemperatureExercises.summaryParListOnePass(parSamples)),
+  )
 
   //////////////////////////////////////////////
   // Bonus question (not covered by the video)

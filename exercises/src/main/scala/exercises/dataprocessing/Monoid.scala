@@ -49,15 +49,24 @@ object Monoid {
   }
 
   val minSample: Monoid[Option[Sample]] = {
-    compareSample { (sample1, sample2) =>
-      if(sample1.temperatureFahrenheit < sample2.temperatureFahrenheit)
-        sample1
-      else sample2
-    }
+    // compareSample { (sample1, sample2) =>
+    //   if(sample1.temperatureFahrenheit < sample2.temperatureFahrenheit)
+    //     sample1
+    //   else sample2
+    // }
+    compareBy[Double, Sample](_.temperatureFahrenheit, _ < _)
   }
 
-  val maxSample: Monoid[Option[Sample]] = compareSample { (sample1, sample2) =>
-    if(sample1.temperatureFahrenheit > sample2.temperatureFahrenheit)
+  val maxSample: Monoid[Option[Sample]] = 
+  //   compareSample { (sample1, sample2) =>
+  //   if(sample1.temperatureFahrenheit > sample2.temperatureFahrenheit)
+  //     sample1
+  //   else sample2
+  // }
+    compareBy[Double, Sample](_.temperatureFahrenheit, _ > _)
+
+  def compareBy[From, To](field: To => From, compare: (From, From) => Boolean): Monoid[Option[To]] = compareSample { (sample1, sample2) =>
+    if(compare(field(sample1), field(sample2)))
       sample1
     else sample2
   }

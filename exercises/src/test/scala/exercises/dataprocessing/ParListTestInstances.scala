@@ -7,7 +7,7 @@ import scala.concurrent.ExecutionContext
 
 trait ParListTestInstances {
 
-  val ec: ExecutionContext = ThreadPoolUtil.fixedSizeExecutionContext(4)
+  implicit val ec: ExecutionContext = ThreadPoolUtil.fixedSizeExecutionContext(4)
 
   val sampleGen: Gen[Sample] =
     for {

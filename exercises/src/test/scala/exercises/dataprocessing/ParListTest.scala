@@ -6,7 +6,7 @@ import TemperatureExercises._
 
 import scala.concurrent.ExecutionContext
 import org.scalacheck.Arbitrary
-
+import org.scalacheck.Gen
 
 // NOTE: Scalacheck tries to find the simple input that breaks the test: SHRINKING
 class ParListTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks with ParListTestInstances {
@@ -125,21 +125,72 @@ class ParListTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks with P
     }
   }
 
-  checkMonoidProperties("int sum", Monoid.sumInt)
-  checkMonoidProperties("double sum", Monoid.sumDouble)
-  checkMonoidProperties("int product", Monoid.timesInt)
+  val intGen: Gen[Int] = Gen.choose(Int.MinValue, Int.MaxValue)
+  checkMonoidProperties("int sum", Monoid.sumInt, intGen)
+  checkMonoidProperties("int product", Monoid.timesInt, intGen)
 
-  def checkMonoidProperties[A: Arbitrary](name: String, monoid: Monoid[A]) = {
+  // This check with double eventually will fail so we can make the test more exhaustive
+
+  // With this config the test fails because there are many decimals and we face precision issues
+  // We can then create a different generator for doubles
+
+  implicit override val generatorDrivenConfig: PropertyCheckConfiguration = PropertyCheckConfiguration(minSuccessful = 100) 
+
+  val doubleGen: Gen[Double] = Gen.choose(-100.00f, 100.00f).map(_.toDouble)
+  checkMonoidProperties("double sum", Monoid.sumDouble, doubleGen)
+
+
+  // We can test the tuple gen or even better test the generic implementation that will be simplier and we can have a single test
+  // checkMonoidProperties("tuple (double, int)", Monoid.sumIntDoubleTuple, Gen.zip(doubleGen, intGen))
+  checkMonoidProperties("zip", Monoid.zip(Monoid.sumInt, Monoid.sumInt), Gen.zip(intGen, intGen))
+
+
+  checkMonoidProperties("minSample", Monoid.minSample, Gen.option(sampleGen))
+  checkMonoidProperties("maxSample", Monoid.maxSample, Gen.option(sampleGen))
+  checkMonoidProperties("summary", Monoid.summary, summaryGen)
+
+  def checkMonoidProperties[A](name: String, monoid: Monoid[A], gen: Gen[A]) = {
     test(s"The monoid $name combined with its default value is a no op") {
-      forAll { (value: A) =>
+      forAll(gen) { (value: A) =>
         assert(monoid.combine(value, monoid.default) == value)
         assert(monoid.combine(monoid.default, value) == value)
       }
     }
     test(s"The monoid $name is associative") {
-      forAll { (value: A, value1: A, value2: A) =>
+      forAll(gen, gen, gen) { (value: A, value1: A, value2: A) =>
         assert(monoid.combine(monoid.combine(value, value1), value2) == monoid.combine(value, monoid.combine(value1, value2)))
       }
+    }
+  }
+
+  val sampleToDobuleIntUpdate: Sample => (Double, Int) = sample => (sample.temperatureFahrenheit, 1)
+  val arbitrarySampleToDoubleIntUpdate: Arbitrary[Sample => (Double, Int)] = Arbitrary(sampleToDobuleIntUpdate)
+  checkGenericallyThatFolMapIsConsistentWithMapAndThenMFoldLeft("tuple monoid", Monoid.sumIntDoubleTuple)(arbitrarySampleToDoubleIntUpdate, Arbitrary(Gen.zip(doubleGen, intGen)))
+
+  def checkGenericallyThatFolMapIsConsistentWithMapAndThenMFoldLeft[A](name: String, monoid: Monoid[A])(implicit update: Arbitrary[Sample => A], gen: Arbitrary[A]) = {
+
+    test(s"Fold map is consistent with map and then monoFoldLeft using monoid $name") {
+     forAll { 
+        (values: ParList[Sample], update: Sample => A) =>
+        assert(values.foldMap(update)(monoid) == values.map(update).monoFoldLeft(monoid))
+      }
+    }
+  }
+
+  // Checking if it works for every update function is not necesary as because of using generics we can be sure it must be used
+  // as there is no other way to get a To form a Form than using the update function
+  // This is a much simpler test that will ensure it will work for all types:
+  test(s"foldMap with the identity function is consistent with monofoldleft") {
+   forAll { 
+      (values: ParList[Int]) =>
+      assert(values.foldMap(identity)(Monoid.sumInt) == values.monoFoldLeft(Monoid.sumInt))
+    }
+  }
+
+  test("Processing the samples in paralell must return the same result as processing them sequentially") {
+    forAll {
+      (samples: ParList[Sample]) =>
+        assert(samples.foldMap(sample => Option(sample))(Monoid.minSample) == samples.parFoldMap(sample => Option(sample))(Monoid.minSample))
     }
   }
 
@@ -155,7 +206,7 @@ class ParListTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks with P
   //   }
   // }
 
-  ignore("summary is consistent between implementations") {
+  test("summary is consistent between implementations") {
     forAll { (samples: ParList[Sample]) =>
       val samplesList = samples.partitions.flatten
       val reference   = summaryList(samples.partitions.flatten)
